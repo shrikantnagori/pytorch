@@ -1,10 +1,9 @@
 # Owner(s): ["module: dynamo"]
-import sys
-
 from torch.testing._internal.common_utils import run_tests, TestCase
 from functorch.experimental.control_flow import cond
+from torch._dynamo.eval_frame import is_dynamo_supported
 from torch._export.trace import do_not_use_experimental_export
-from torch._export.constraints import add_inline_size_constraint
+from torch._export.constraints import constrain_as_size
 from torch.fx.experimental.proxy_tensor import make_fx
 import torch._dynamo as torchdynamo
 from torch._dynamo import config
@@ -81,13 +80,13 @@ class TestExport(TestCase):
         # self.assertEqual(mutated_buffer.sum().item(), 30)
         self.assertEqual(output, mod(*inp))
 
-    @unittest.skipIf(sys.version_info >= (3, 11), "Export test for Python 3.11")
+    @unittest.skipIf(not is_dynamo_supported(), "Dynamo not supported")
     @config.patch(dynamic_shapes=True, capture_dynamic_output_shape_ops=True, specialize_int=True, capture_scalar_outputs=True)
     def test_export_constraints(self):
 
         def f(x):
             b = x.item()
-            add_inline_size_constraint(b, min=2, max=5)
+            constrain_as_size(b, min=2, max=5)
             return torch.full((b, 1), 1)
 
         inp = (torch.tensor([3]),)
@@ -102,12 +101,12 @@ class TestExport(TestCase):
         res = gm(*inp)
         self.assertTrue(torchdynamo.utils.same(ref, res))
 
-    @unittest.skipIf(sys.version_info >= (3, 11), "Export test for Python 3.11")
+    @unittest.skipIf(not is_dynamo_supported(), "Dynamo not supported")
     @config.patch(dynamic_shapes=True, capture_dynamic_output_shape_ops=True, specialize_int=True, capture_scalar_outputs=True)
     def test_export_constraints_error(self):
         def invalid_size(x):
             b = x.item()
-            add_inline_size_constraint(b, min=0, max=5)
+            constrain_as_size(b, min=0, max=5)
             return torch.full((b, 1), 1)
 
         inp = (torch.tensor([3]),)
@@ -116,7 +115,7 @@ class TestExport(TestCase):
 
         def invalid_input(x):
             b = x.item()
-            add_inline_size_constraint(b, min=2, max=5)
+            constrain_as_size(b, min=2, max=5)
             return torch.full((b, 1), 1)
 
         inp = (torch.tensor([6]),)
@@ -126,8 +125,8 @@ class TestExport(TestCase):
 
         def conflicting_constraints(x):
             b = x.item()
-            add_inline_size_constraint(b, min=2, max=3)
-            add_inline_size_constraint(b, min=4, max=5)
+            constrain_as_size(b, min=2, max=3)
+            constrain_as_size(b, min=4, max=5)
             return torch.full((b, 1), 1)
 
         inp = (torch.tensor([3]),)
