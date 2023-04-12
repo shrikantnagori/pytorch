@@ -6,7 +6,7 @@ from functorch.experimental import control_flow
 from functorch.experimental.control_flow import cond
 from functorch.experimental.control_flow import UnsupportedAliasMutationException
 from torch.fx.experimental.proxy_tensor import make_fx
-
+from torch._dynamo.exc import UserError
 from torch.testing._internal.common_utils import run_tests, TestCase
 
 class TestControlFlow(TestCase):
@@ -378,7 +378,7 @@ class TestControlFlowTraced(TestCase):
         out = "".join(out.split())
         self.assertEqual(code, out)
 
-    def test_assert_on_mismatch_type_size(self):
+    def test_raise_user_error_on_mismatch_type_size(self):
         def true_fn(x):
             return x.sin()
 
@@ -389,11 +389,14 @@ class TestControlFlowTraced(TestCase):
             return cond(y, true_fn, false_fn, [x])
 
         x = torch.randn(4)
-        with self.assertRaises(AssertionError):
+        with self.assertRaisesRegex(
+            UserError,
+            "cond: Branches must return with same length."
+        ):
             make_fx(f)(x, torch.tensor(False))
 
 
-    def test_assert_on_mismatch_tensor_size(self):
+    def test_raise_user_error_on_mismatch_tensor_size(self):
         def true_fn(x):
             return x.sin()
 
@@ -404,7 +407,10 @@ class TestControlFlowTraced(TestCase):
             return cond(y, true_fn, false_fn, [x])
 
         x = torch.randn(4)
-        with self.assertRaises(AssertionError):
+        with self.assertRaisesRegex(
+            UserError,
+            "cond: Branches must return each tensor with exact same metadata."
+        ):
             make_fx(f)(x, torch.tensor(False))
 
     def test_cond_traced_not_nested_fake_tensor(self):
@@ -540,7 +546,7 @@ class TestControlFlowTraced(TestCase):
         out = "".join(out.split())
         self.assertEqual(code, out)
 
-    def test_assert_on_mismatch_type_size_fake_tensor(self):
+    def test_raise_user_error_on_mismatch_type_size_fake_tensor(self):
         def true_fn(x):
             return x.sin()
 
@@ -551,11 +557,14 @@ class TestControlFlowTraced(TestCase):
             return cond(y, true_fn, false_fn, [x])
 
         x = torch.randn(4)
-        with self.assertRaises(AssertionError):
+        with self.assertRaisesRegex(
+            UserError,
+            "cond: Branches must return with same length."
+        ):
             make_fx(f, tracing_mode="fake")(x, torch.tensor(False))
 
 
-    def test_assert_on_mismatch_tensor_size_fake_tensor(self):
+    def test_raise_user_error_on_mismatch_tensor_size_fake_tensor(self):
         def true_fn(x):
             return x.sin()
 
@@ -566,7 +575,10 @@ class TestControlFlowTraced(TestCase):
             return cond(y, true_fn, false_fn, [x])
 
         x = torch.randn(4)
-        with self.assertRaises(AssertionError):
+        with self.assertRaisesRegex(
+            UserError,
+            "cond: Branches must return each tensor with exact same metadata."
+        ):
             make_fx(f, tracing_mode="fake")(x, torch.tensor(False))
 
     def check_map_graph(self, gm, key):
